@@ -190,6 +190,9 @@ object VmessFmt : FmtBase() {
             profileItem.authority,
         )
 
+        outboundBean?.streamSettings?.xhttpSettings?.mode = profileItem.xhttpMode
+        outboundBean?.streamSettings?.xhttpSettings?.extra = JsonUtil.parseString(profileItem.xhttpExtra)
+
         outboundBean?.streamSettings?.populateTlsSettings(
             profileItem.security.orEmpty(),
             profileItem.insecure == true,
