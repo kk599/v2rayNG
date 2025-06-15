@@ -33,13 +33,53 @@ import java.lang.ref.SoftReference
 class V2RayVpnService : VpnService(), ServiceControl {
     companion object {
         private const val VPN_MTU = 1500
-        private const val PRIVATE_VLAN4_CLIENT = "10.10.14.1"
-        private const val PRIVATE_VLAN4_ROUTER = "10.10.14.2"
+        // private const val PRIVATE_VLAN4_CLIENT = "10.10.14.1"
+        // private const val PRIVATE_VLAN4_ROUTER = "10.10.14.2"
         private const val PRIVATE_VLAN6_CLIENT = "fc00::10:10:14:1"
         private const val PRIVATE_VLAN6_ROUTER = "fc00::10:10:14:2"
         private const val TUN2SOCKS = "libtun2socks.so"
 
+
+
+
+
+        private const val START_IP = "10.250.0.0"
+        private const val END_IP = "10.255.255.252"
+
+        private fun ipToInt(ip: String): Int {
+            return ip.split(".").fold(0) { acc, octet ->
+                (acc shl 8) or (octet.toInt() and 0xFF)
+            }
+        }
+
+        private fun intToIp(ipInt: Int): String {
+            return listOf(
+                (ipInt shr 24) and 0xFF,
+                (ipInt shr 16) and 0xFF,
+                (ipInt shr 8) and 0xFF,
+                ipInt and 0xFF
+            ).joinToString(".")
+        }
+
+        fun generateRandomVlan30Pair(): Pair<String, String> {
+            val baseIp = ipToInt(START_IP)
+            val maxIp = ipToInt(END_IP)
+            val totalSubnets = (maxIp - baseIp) / 4
+
+            val randomSubnetIndex = (0 until totalSubnets).random()
+            val subnetBase = baseIp + randomSubnetIndex * 4
+
+            val clientIp = intToIp(subnetBase + 1)
+            val routerIp = intToIp(subnetBase + 2)
+            return Pair(clientIp, routerIp)
+        }
+
     }
+
+    private lateinit var privateVlan4Client: String
+    private lateinit var privateVlan4Router: String
+
+
 
     private lateinit var mInterface: ParcelFileDescriptor
     private var isRunning = false
@@ -145,6 +185,10 @@ class V2RayVpnService : VpnService(), ServiceControl {
             return
         }
 
+        val (clientIp, routerIp) = generateRandomVlan30Pair()
+        privateVlan4Client = clientIp
+        privateVlan4Router = routerIp
+
         if (setupVpnService() != true) {
             return
         }
@@ -163,7 +207,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
         //val enableLocalDns = defaultDPreference.getPrefBoolean(AppConfig.PREF_LOCAL_DNS_ENABLED, false)
 
         builder.setMtu(VPN_MTU)
-        builder.addAddress(PRIVATE_VLAN4_CLIENT, 30)
+        builder.addAddress(privateVlan4Client, 30)
         //builder.addDnsServer(PRIVATE_VLAN4_ROUTER)
         val bypassLan = SettingsManager.routingRulesetsBypassLan()
         if (bypassLan) {
@@ -262,7 +306,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
         val socksPort = SettingsManager.getSocksPort()
         val cmd = arrayListOf(
             File(applicationContext.applicationInfo.nativeLibraryDir, TUN2SOCKS).absolutePath,
-            "--netif-ipaddr", PRIVATE_VLAN4_ROUTER,
+            "--netif-ipaddr", privateVlan4Router,
             "--netif-netmask", "255.255.255.252",
             "--socks-server-addr", "$LOOPBACK:${socksPort}",
             "--tunmtu", VPN_MTU.toString(),
