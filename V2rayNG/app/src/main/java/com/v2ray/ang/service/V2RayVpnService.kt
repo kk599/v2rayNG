@@ -204,6 +204,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
         // If the old interface has exactly the same parameters, use it!
         // Configure a builder while parsing the parameters.
         val builder = Builder()
+        val vpnConfig = SettingsManager.getCurrentVpnInterfaceAddressConfig()
         //val enableLocalDns = defaultDPreference.getPrefBoolean(AppConfig.PREF_LOCAL_DNS_ENABLED, false)
 
         builder.setMtu(VPN_MTU)
@@ -220,7 +221,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
         }
 
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_PREFER_IPV6) == true) {
-            builder.addAddress(PRIVATE_VLAN6_CLIENT, 126)
+            builder.addAddress(vpnConfig.ipv6Client, 126)
             if (bypassLan) {
                 builder.addRoute("2000::", 3) //currently only 1/8 of total ipV6 is in use
                 builder.addRoute("fc00::", 18) //Xray-core default FakeIPv6 Pool
@@ -304,6 +305,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
     private fun runTun2socks() {
         Log.i(AppConfig.TAG, "Start run $TUN2SOCKS")
         val socksPort = SettingsManager.getSocksPort()
+        val vpnConfig = SettingsManager.getCurrentVpnInterfaceAddressConfig()
         val cmd = arrayListOf(
             File(applicationContext.applicationInfo.nativeLibraryDir, TUN2SOCKS).absolutePath,
             "--netif-ipaddr", privateVlan4Router,
@@ -317,7 +319,7 @@ class V2RayVpnService : VpnService(), ServiceControl {
 
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_PREFER_IPV6)) {
             cmd.add("--netif-ip6addr")
-            cmd.add(PRIVATE_VLAN6_ROUTER)
+            cmd.add(vpnConfig.ipv6Router)
         }
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_LOCAL_DNS_ENABLED)) {
             val localDnsPort = Utils.parseInt(MmkvManager.decodeSettingsString(AppConfig.PREF_LOCAL_DNS_PORT), AppConfig.PORT_LOCAL_DNS.toInt())
