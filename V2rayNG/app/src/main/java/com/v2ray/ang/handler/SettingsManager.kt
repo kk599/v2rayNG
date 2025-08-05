@@ -17,6 +17,7 @@ import com.v2ray.ang.dto.RoutingType
 import com.v2ray.ang.dto.RulesetItem
 import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.VpnInterfaceAddressConfig
+import com.v2ray.ang.dto.VpnAddressResult
 import com.v2ray.ang.handler.MmkvManager.decodeServerConfig
 import com.v2ray.ang.handler.MmkvManager.decodeServerList
 import com.v2ray.ang.util.JsonUtil
@@ -366,7 +367,7 @@ object SettingsManager {
      * @return The selected VpnInterfaceAddressConfig instance, or the default configuration
      *         if no valid selection is found or if the stored index is invalid.
      */
-    fun getCurrentVpnInterfaceAddressConfig(): VpnInterfaceAddressConfig {
+    fun getCurrentVpnInterfaceAddressConfig(): VpnAddressResult {
         val selectedIndex = MmkvManager.decodeSettingsString(AppConfig.PREF_VPN_INTERFACE_ADDRESS_CONFIG_INDEX, "0")?.toInt()
         return VpnInterfaceAddressConfig.getConfigByIndex(selectedIndex ?: 0)
     }

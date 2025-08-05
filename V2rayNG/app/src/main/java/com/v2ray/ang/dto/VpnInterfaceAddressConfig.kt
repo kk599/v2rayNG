@@ -21,6 +21,53 @@ enum class VpnInterfaceAddressConfig(
     OPTION_7("192.168.100.x", "192.168.100.1", "192.168.100.2", "fc00::192:168:100:1", "fc00::192:168:100:2");
 
     companion object {
+
+
+        private const val START_IP = "10.250.0.0"
+        private const val END_IP = "10.255.255.252"
+
+        private fun ipToInt(ip: String): Int {
+            return ip.split(".").fold(0) { acc, octet ->
+                (acc shl 8) or (octet.toInt() and 0xFF)
+            }
+        }
+
+        private fun intToIp(ipInt: Int): String {
+            return listOf(
+                (ipInt shr 24) and 0xFF,
+                (ipInt shr 16) and 0xFF,
+                (ipInt shr 8) and 0xFF,
+                ipInt and 0xFF
+            ).joinToString(".")
+        }
+
+        /**
+         * Generates a random /30 subnet pair from the defined dynamic pool.
+         * Returns Pair<clientIP, routerIP>
+         */
+        private fun generateRandomVlan30Pair(): Pair<String, String> {
+            val baseIp = ipToInt(START_IP)
+            val maxIp = ipToInt(END_IP)
+            val totalSubnets = (maxIp - baseIp) / 4
+
+            val randomSubnetIndex = (0 until totalSubnets).random()
+            val subnetBase = baseIp + randomSubnetIndex * 4
+
+            val clientIp = intToIp(subnetBase + 1)
+            val routerIp = intToIp(subnetBase + 2)
+            return Pair(clientIp, routerIp)
+        }
+
+        private val clientIp: String
+        private val routerIp: String
+
+        init {
+            val (client, router) = generateRandomVlan30Pair()
+            clientIp = client
+            routerIp = router
+        }
+        
+
         /**
          * Retrieves the VPN interface address configuration based on the specified index.
          *
@@ -28,12 +75,17 @@ enum class VpnInterfaceAddressConfig(
          * @return The VpnInterfaceAddressConfig instance at the specified index,
          *         or OPTION_1 (default) if the index is out of bounds
          */
-        fun getConfigByIndex(index: Int): VpnInterfaceAddressConfig {
-            return if (index in values().indices) {
-                values()[index]
-            } else {
-                OPTION_1 // Default to the first configuration
-            }
+        fun getConfigByIndex(index: Int): VpnAddressResult {
+            return VpnAddressResult(clientIp, clientIp, routerIp, "fc00::10:0:0:1", "fc00::10:0:0:2")
         }
     }
 }
+
+
+data class VpnAddressResult(
+    val displayName: String,
+    val ipv4Client: String,
+    val ipv4Router: String,
+    val ipv6Client: String,
+    val ipv6Router: String
+)
