@@ -509,9 +509,10 @@ object V2rayConfigManager {
                 //hev-socks5-tunnel dns routing
                 v2rayConfig.routing.rules.add(
                     0, RulesBean(
-                        type = "field",
+                        inboundTag = arrayListOf("socks"),
+                        outboundTag = "dns-out",
                         port = "53",
-                        outboundTag = "dns-out"
+                        type = "field"
                     )
                 )
             }
@@ -574,18 +575,8 @@ object V2rayConfigManager {
                         address = domesticDns.first(),
                         domains = directDomain,
                         expectIPs = if (isCnRoutingMode) geoipCn else null,
-                        skipFallback = true
-                    )
-                )
-            }
-
-            if (Utils.isPureIpAddress(domesticDns.first())) {
-                v2rayConfig.routing.rules.add(
-                    0, RulesBean(
-                        outboundTag = AppConfig.TAG_DIRECT,
-                        port = "53",
-                        ip = arrayListOf(domesticDns.first()),
-                        domain = null
+                        skipFallback = true,
+                        tag = AppConfig.TAG_DOMESTIC_DNS
                     )
                 )
             }
@@ -626,20 +617,26 @@ object V2rayConfigManager {
             // DNS dns
             v2rayConfig.dns = V2rayConfig.DnsBean(
                 servers = servers,
-                hosts = hosts
+                hosts = hosts,
+                tag = AppConfig.TAG_DNS
             )
 
             // DNS routing
-            if (Utils.isPureIpAddress(remoteDns.first())) {
-                v2rayConfig.routing.rules.add(
-                    0, RulesBean(
-                        outboundTag = AppConfig.TAG_PROXY,
-                        port = "53",
-                        ip = arrayListOf(remoteDns.first()),
-                        domain = null
-                    )
+            v2rayConfig.routing.rules.add(
+                0, RulesBean(
+                    outboundTag = AppConfig.TAG_PROXY,
+                    inboundTag = arrayListOf(AppConfig.TAG_DNS),
+                    domain = null
                 )
-            }
+            )
+
+            v2rayConfig.routing.rules.add(
+                0, RulesBean(
+                    outboundTag = AppConfig.TAG_DIRECT,
+                    inboundTag = arrayListOf(AppConfig.TAG_DOMESTIC_DNS),
+                    domain = null
+                )
+            )
         } catch (e: Exception) {
             Log.e(AppConfig.TAG, "Failed to configure DNS", e)
             return false
@@ -1014,14 +1011,22 @@ object V2rayConfigManager {
             if (domain.isNullOrEmpty()) continue
 
             if (newHosts.containsKey(domain)) {
-                item.ensureSockopt().domainStrategy = if (preferIpv6) "UseIPv6v4" else "UseIPv4v6"
+                item.ensureSockopt().domainStrategy = "UseIP"
+                item.ensureSockopt().happyEyeballs = StreamSettingsBean.happyEyeballsBean(
+                    prioritizeIPv6 = preferIpv6,
+                    interleave = 2
+                )
                 continue
             }
 
             val resolvedIps = HttpUtil.resolveHostToIP(domain, preferIpv6)
             if (resolvedIps.isNullOrEmpty()) continue
 
-            item.ensureSockopt().domainStrategy = if (preferIpv6) "UseIPv6v4" else "UseIPv4v6"
+            item.ensureSockopt().domainStrategy = "UseIP"
+            item.ensureSockopt().happyEyeballs = StreamSettingsBean.happyEyeballsBean(
+                prioritizeIPv6 = preferIpv6,
+                interleave = 2
+            )
             newHosts[domain] = if (resolvedIps.size == 1) {
                 resolvedIps[0]
             } else {

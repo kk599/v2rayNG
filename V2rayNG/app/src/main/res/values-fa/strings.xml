@@ -182,6 +182,7 @@
     <string name="title_pref_vpn_bypass_lan">آیا VPN از شبکه محلی عبور می کند؟</string>
 
     <string name="title_pref_vpn_interface_address">آدرس واسط VPN</string>
+    <string name="title_pref_vpn_mtu">VPN MTU (default 1500)</string>
 
     <string name="title_pref_domestic_dns">DNS داخلی (اختیاری)</string>
     <string name="summary_pref_domestic_dns">DNS</string>
@@ -390,5 +391,6 @@
         <item>کمترین پینگ</item>
         <item>کمترین بار(لود)</item>
     </string-array>
+    <string name="pre_resolving_domain">Pre-resolving domain…</string>
 
 </resources>

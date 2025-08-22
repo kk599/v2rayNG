@@ -27,6 +27,7 @@ object AppConfig {
     const val PREF_VPN_DNS = "pref_vpn_dns"
     const val PREF_VPN_BYPASS_LAN = "pref_vpn_bypass_lan"
     const val PREF_VPN_INTERFACE_ADDRESS_CONFIG_INDEX = "pref_vpn_interface_address_config_index"
+    const val PREF_VPN_MTU = "pref_vpn_mtu"
     const val PREF_ROUTING_DOMAIN_STRATEGY = "pref_routing_domain_strategy"
     const val PREF_ROUTING_RULESET = "pref_routing_ruleset"
     const val PREF_MUX_ENABLED = "pref_mux_enabled"
@@ -90,6 +91,8 @@ object AppConfig {
     const val TAG_DIRECT = "direct"
     const val TAG_BLOCKED = "block"
     const val TAG_FRAGMENT = "fragment"
+    const val TAG_DNS = "dns-module"
+    const val TAG_DOMESTIC_DNS = "domestic-dns"
 
     /** Network-related constants. */
     const val UPLINK = "uplink"
