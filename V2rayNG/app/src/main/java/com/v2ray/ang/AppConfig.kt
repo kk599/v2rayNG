@@ -65,7 +65,7 @@ object AppConfig {
     const val PREF_GEO_FILES_SOURCES = "pref_geo_files_sources"
     const val PREF_USE_HEV_TUNNEL = "pref_use_hev_tunnel"
     const val PREF_HEV_TUNNEL_LOGLEVEL = "pref_hev_tunnel_loglevel"
-    const val PREF_HEV_TUNNEL_RW_TIMEOUT = "pref_hev_tunnel_rw_timeout"
+    const val PREF_HEV_TUNNEL_RW_TIMEOUT = "pref_hev_tunnel_rw_timeout_v2"
 
     /** Cache keys. */
     const val CACHE_SUBSCRIPTION_ID = "cache_subscription_id"
@@ -75,9 +75,9 @@ object AppConfig {
     const val PROTOCOL_FREEDOM = "freedom"
 
     /** Broadcast actions. */
-    const val BROADCAST_ACTION_SERVICE = "com.v2ray.ang.action.service"
-    const val BROADCAST_ACTION_ACTIVITY = "com.v2ray.ang.action.activity"
-    const val BROADCAST_ACTION_WIDGET_CLICK = "com.v2ray.ang.action.widget.click"
+    const val BROADCAST_ACTION_SERVICE = "$ANG_PACKAGE.action.service"
+    const val BROADCAST_ACTION_ACTIVITY = "$ANG_PACKAGE.action.activity"
+    const val BROADCAST_ACTION_WIDGET_CLICK = "$ANG_PACKAGE.action.widget.click"
 
     /** Tasker extras. */
     const val TASKER_EXTRA_BUNDLE = "com.twofortyfouram.locale.intent.extra.BUNDLE"
@@ -112,7 +112,8 @@ object AppConfig {
     const val TG_CHANNEL_URL = "https://t.me/github_2dust"
     const val DELAY_TEST_URL = "https://www.gstatic.com/generate_204"
     const val DELAY_TEST_URL2 = "https://www.google.com/generate_204"
-    const val IP_API_URL = "https://speed.cloudflare.com/meta"
+//    const val IP_API_URL = "https://speed.cloudflare.com/meta"
+    const val IP_API_URL = "https://api.ip.sb/geoip"
 
     /** DNS server addresses. */
     const val DNS_PROXY = "1.1.1.1"
@@ -172,7 +173,7 @@ object AppConfig {
     const val VPN_MTU = 1500
 
     /** hev-sock5-tunnel read-write-timeout value */
-    const val HEVTUN_RW_TIMEOUT = "300000"
+    const val HEVTUN_RW_TIMEOUT = "300,60"
 
     // Google API rule constants
     const val GOOGLEAPIS_CN_DOMAIN = "domain:googleapis.cn"
