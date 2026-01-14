@@ -34,19 +34,19 @@ data class V2rayConfig(
         var port: Int,
         var protocol: String,
         var listen: String? = null,
-        val settings: Any? = null,
+        var settings: InSettingsBean? = null,
         val sniffing: SniffingBean? = null,
         val streamSettings: Any? = null,
         val allocate: Any? = null
     ) {
 
         data class InSettingsBean(
-            val auth: String? = null,
-            val udp: Boolean? = null,
-            val userLevel: Int? = null,
-            val address: String? = null,
-            val port: Int? = null,
-            val network: String? = null
+            var auth: String? = null,
+            var udp: Boolean? = null,
+            var userLevel: Int? = null,
+            var name: String? = null,
+            @SerializedName("MTU")
+            var mtu: Int? = null
         )
 
         data class SniffingBean(
@@ -246,9 +246,9 @@ data class V2rayConfig(
                 var mark: Int? = null,
                 var dialerProxy: String? = null,
                 var domainStrategy: String? = null,
-                var happyEyeballs: happyEyeballsBean? = null,
+                var happyEyeballs: HappyEyeballsBean? = null,
                 )
-            data class happyEyeballsBean(
+            data class HappyEyeballsBean(
                 var prioritizeIPv6: Boolean? = null,
                 var maxConcurrentTry: Int? = 4,
                 var tryDelayMs: Int? = 250, // ms
@@ -267,6 +267,8 @@ data class V2rayConfig(
                 val certificates: List<Any>? = null,
                 val disableSystemRoot: Boolean? = null,
                 val enableSessionResumption: Boolean? = null,
+                var echConfigList: String? = null,
+                var echForceQuery: String? = null,
                 // REALITY settings
                 val show: Boolean = false,
                 var publicKey: String? = null,
@@ -469,12 +471,12 @@ data class V2rayConfig(
             return null
         }
 
-        fun ensureSockopt(): V2rayConfig.OutboundBean.StreamSettingsBean.SockoptBean {
-            val stream = streamSettings ?: V2rayConfig.OutboundBean.StreamSettingsBean().also {
+        fun ensureSockopt(): StreamSettingsBean.SockoptBean {
+            val stream = streamSettings ?: StreamSettingsBean().also {
                 streamSettings = it
             }
 
-            val sockopt = stream.sockopt ?: V2rayConfig.OutboundBean.StreamSettingsBean.SockoptBean().also {
+            val sockopt = stream.sockopt ?: StreamSettingsBean.SockoptBean().also {
                 stream.sockopt = it
             }
 

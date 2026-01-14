@@ -6,14 +6,14 @@ plugins {
 
 android {
     namespace = "com.v2ray.ang"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.v2ray.ang"
-        minSdk = 21
-        targetSdk = 35
-        versionCode = 684
-        versionName = "1.10.32"
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 700
+        versionName = "2.0.0"
         multiDexEnabled = true
 
         val abiFilterList = (properties["ABI_FILTERS"] as? String)?.split(';')
@@ -148,6 +148,8 @@ dependencies {
     implementation(libs.preference.ktx)
     implementation(libs.recyclerview)
     implementation(libs.androidx.swiperefreshlayout)
+    implementation(libs.androidx.viewpager2)
+    implementation(libs.androidx.fragment)
 
     // UI Libraries
     implementation(libs.material)
@@ -158,6 +160,7 @@ dependencies {
     // Data and Storage Libraries
     implementation(libs.mmkv.static)
     implementation(libs.gson)
+    implementation(libs.okhttp)
 
     // Reactive and Utility Libraries
     implementation(libs.kotlinx.coroutines.android)
