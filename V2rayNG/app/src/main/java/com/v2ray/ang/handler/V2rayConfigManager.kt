@@ -920,6 +920,10 @@ object V2rayConfigManager {
                 return true
             }
 
+            if (v2rayConfig.outbounds[0].protocol == EConfigType.HYSTERIA.name.lowercase() || v2rayConfig.outbounds[0].protocol == EConfigType.HYSTERIA2.name.lowercase()) {
+                return true
+            }
+
             val fragmentOutbound =
                 OutboundBean(
                     protocol = AppConfig.PROTOCOL_FREEDOM,
