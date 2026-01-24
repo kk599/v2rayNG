@@ -318,12 +318,8 @@ object SettingsManager {
      * @return The delay test URL.
      */
     fun getDelayTestUrl(second: Boolean = false): String {
-        return if (second) {
-            AppConfig.DELAY_TEST_URL2
-        } else {
-            MmkvManager.decodeSettingsString(AppConfig.PREF_DELAY_TEST_URL)
+        return MmkvManager.decodeSettingsString(AppConfig.PREF_DELAY_TEST_URL)
                 ?: AppConfig.DELAY_TEST_URL
-        }
     }
 
     /**
