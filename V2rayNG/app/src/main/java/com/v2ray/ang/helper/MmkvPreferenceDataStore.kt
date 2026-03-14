@@ -1,7 +1,10 @@
-package com.v2ray.ang.handler
+package com.v2ray.ang.helper
 
 import androidx.preference.PreferenceDataStore
 import com.v2ray.ang.AppConfig
+import com.v2ray.ang.handler.MmkvManager
+import com.v2ray.ang.handler.SettingsChangeManager
+import com.v2ray.ang.handler.SettingsManager
 
 /**
  * PreferenceDataStore implementation that bridges AndroidX Preference framework to MMKV storage.
@@ -76,5 +79,6 @@ class MmkvPreferenceDataStore : PreferenceDataStore() {
         }
         // Notify listeners that require service restart or reinit
         SettingsChangeManager.makeRestartService()
+        SettingsChangeManager.makeSetupGroupTab()
     }
 }

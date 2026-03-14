@@ -23,13 +23,14 @@ class TaskerActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(binding.root)
+        //setContentView(binding.root)
+        setContentViewWithToolbar(binding.root, showHomeAsUp = true, title = "")
 
         //add def value
         lstData.add("Default")
         lstGuid.add(AppConfig.TASKER_DEFAULT_GUID)
 
-        MmkvManager.decodeServerList().forEach { key ->
+        MmkvManager.decodeAllServerList().forEach { key ->
             MmkvManager.decodeServerConfig(key)?.let { config ->
                 lstData.add(config.remarks)
                 lstGuid.add(key)

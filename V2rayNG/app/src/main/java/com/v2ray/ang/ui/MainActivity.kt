@@ -1,12 +1,9 @@
 package com.v2ray.ang.ui
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.net.Uri
 import android.net.VpnService
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
@@ -25,15 +22,16 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.tabs.TabLayoutMediator
 import com.v2ray.ang.AppConfig
-import com.v2ray.ang.AppConfig.VPN
 import com.v2ray.ang.R
 import com.v2ray.ang.databinding.ActivityMainBinding
-import com.v2ray.ang.dto.EConfigType
+import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.enums.PermissionType
 import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsChangeManager
+import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.handler.V2RayServiceManager
 import com.v2ray.ang.util.Utils
 import com.v2ray.ang.viewmodel.MainViewModel
@@ -42,7 +40,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedListener {
+class MainActivity : HelperBaseActivity(), NavigationView.OnNavigationItemSelectedListener {
     private val binding by lazy {
         ActivityMainBinding.inflate(layoutInflater)
     }
@@ -65,52 +63,6 @@ class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedList
         }
     }
 
-    // register activity result for requesting permission
-    private val requestPermissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-                when (pendingAction) {
-                    Action.IMPORT_QR_CODE_CONFIG ->
-                        scanQRCodeForConfig.launch(Intent(this, ScannerActivity::class.java))
-
-                    Action.READ_CONTENT_FROM_URI ->
-                        chooseFileForCustomConfig.launch(Intent.createChooser(Intent(Intent.ACTION_GET_CONTENT).apply {
-                            type = "*/*"
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                        }, getString(R.string.title_file_chooser)))
-
-                    Action.POST_NOTIFICATIONS -> {}
-                    else -> {}
-                }
-            } else {
-                toast(R.string.toast_permission_denied)
-            }
-            pendingAction = Action.NONE
-        }
-
-    private var pendingAction: Action = Action.NONE
-
-    enum class Action {
-        NONE,
-        IMPORT_QR_CODE_CONFIG,
-        READ_CONTENT_FROM_URI,
-        POST_NOTIFICATIONS
-    }
-
-    private val chooseFileForCustomConfig = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        val uri = it.data?.data
-        if (it.resultCode == RESULT_OK && uri != null) {
-            readContentFromUri(uri)
-        }
-    }
-
-    private val scanQRCodeForConfig = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (it.resultCode == RESULT_OK) {
-            importBatchConfig(it.data?.getStringExtra("SCAN_RESULT"))
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -142,17 +94,14 @@ class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedList
         })
 
         binding.fab.setOnClickListener { handleFabAction() }
+        binding.fabLocate.setOnClickListener { locateSelectedServer() }
         binding.layoutTest.setOnClickListener { handleLayoutTestClick() }
 
         setupGroupTab()
         setupViewModel()
         mainViewModel.reloadServerList()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                pendingAction = Action.POST_NOTIFICATIONS
-                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
+        checkAndRequestPermission(PermissionType.POST_NOTIFICATIONS) {
         }
     }
 
@@ -188,7 +137,7 @@ class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedList
 
         if (mainViewModel.isRunning.value == true) {
             V2RayServiceManager.stopVService(this)
-        } else if ((MmkvManager.decodeSettingsString(AppConfig.PREF_MODE) ?: VPN) == VPN) {
+        } else if (SettingsManager.isVpnMode()) {
             val intent = VpnService.prepare(this)
             if (intent == null) {
                 startV2Ray()
@@ -416,12 +365,10 @@ class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedList
      * import config from qrcode
      */
     private fun importQRcode(): Boolean {
-        val permission = Manifest.permission.CAMERA
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-            scanQRCodeForConfig.launch(Intent(this, ScannerActivity::class.java))
-        } else {
-            pendingAction = Action.IMPORT_QR_CODE_CONFIG
-            requestPermissionLauncher.launch(permission)
+        launchQRCodeScanner { scanResult ->
+            if (scanResult != null) {
+                importBatchConfig(scanResult)
+            }
         }
         return true
     }
@@ -487,18 +434,27 @@ class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedList
     /**
      * import config from sub
      */
-    private fun importConfigViaSub(): Boolean {
+    fun importConfigViaSub(): Boolean {
         showLoading()
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val count = mainViewModel.updateConfigViaSubAll()
+            val result = mainViewModel.updateConfigViaSubAll()
             delay(500L)
             launch(Dispatchers.Main) {
-                if (count > 0) {
-                    toast(getString(R.string.title_update_config_count, count))
-                    mainViewModel.reloadServerList()
+                if (result.successCount + result.failureCount + result.skipCount == 0) {
+                    toast(R.string.title_update_subscription_no_subscription)
+                } else if (result.successCount > 0 && result.failureCount + result.skipCount == 0) {
+                    toast(getString(R.string.title_update_config_count, result.configCount))
                 } else {
-                    toastError(R.string.toast_failure)
+                    toast(
+                        getString(
+                            R.string.title_update_subscription_result,
+                            result.configCount, result.successCount, result.failureCount, result.skipCount
+                        )
+                    )
+                }
+                if (result.configCount > 0) {
+                    mainViewModel.reloadServerList()
                 }
                 hideLoading()
             }
@@ -592,21 +548,12 @@ class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedList
      * show file chooser
      */
     private fun showFileChooser() {
-        val intent = Intent(Intent.ACTION_GET_CONTENT)
-        intent.type = "*/*"
-        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        launchFileChooser { uri ->
+            if (uri == null) {
+                return@launchFileChooser
+            }
 
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-            pendingAction = Action.READ_CONTENT_FROM_URI
-            chooseFileForCustomConfig.launch(Intent.createChooser(intent, getString(R.string.title_file_chooser)))
-        } else {
-            requestPermissionLauncher.launch(permission)
+            readContentFromUri(uri)
         }
     }
 
@@ -614,22 +561,53 @@ class MainActivity : BaseActivity(), NavigationView.OnNavigationItemSelectedList
      * read content from uri
      */
     private fun readContentFromUri(uri: Uri) {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
+        try {
+            contentResolver.openInputStream(uri).use { input ->
+                importBatchConfig(input?.bufferedReader()?.readText())
+            }
+        } catch (e: Exception) {
+            Log.e(AppConfig.TAG, "Failed to read content from URI", e)
+        }
+    }
+
+    /**
+     * Locates and scrolls to the currently selected server.
+     * If the selected server is in a different group, automatically switches to that group first.
+     */
+    private fun locateSelectedServer() {
+        val targetSubscriptionId = mainViewModel.findSubscriptionIdBySelect()
+        if (targetSubscriptionId.isNullOrEmpty()) {
+            toast(R.string.title_file_chooser)
+            return
         }
 
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-            try {
-                contentResolver.openInputStream(uri).use { input ->
-                    importBatchConfig(input?.bufferedReader()?.readText())
-                }
-            } catch (e: Exception) {
-                Log.e(AppConfig.TAG, "Failed to read content from URI", e)
-            }
+        val targetGroupIndex = groupPagerAdapter.groups.indexOfFirst { it.id == targetSubscriptionId }
+        if (targetGroupIndex < 0) {
+            toast(R.string.toast_server_not_found_in_group)
+            return
+        }
+
+        // Switch to target group if needed, then scroll to the server
+        if (binding.viewPager.currentItem != targetGroupIndex) {
+            binding.viewPager.setCurrentItem(targetGroupIndex, true)
+            binding.viewPager.postDelayed({ scrollToSelectedServer(targetGroupIndex) }, 1000)
         } else {
-            requestPermissionLauncher.launch(permission)
+            scrollToSelectedServer(targetGroupIndex)
+        }
+    }
+
+    /**
+     * Scrolls to the selected server in the specified fragment.
+     * @param groupIndex The index of the group/fragment to scroll in
+     */
+    private fun scrollToSelectedServer(groupIndex: Int) {
+        val itemId = groupPagerAdapter.getItemId(groupIndex)
+        val fragment = supportFragmentManager.findFragmentByTag("f$itemId") as? GroupServerFragment
+
+        if (fragment?.isAdded == true && fragment.view != null) {
+            fragment.scrollToSelectedServer()
+        } else {
+            toast(R.string.toast_fragment_not_available)
         }
     }
 

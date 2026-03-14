@@ -1,14 +1,14 @@
 package com.v2ray.ang.fmt
 
 import com.v2ray.ang.AppConfig
-import com.v2ray.ang.dto.EConfigType
-import com.v2ray.ang.dto.NetworkType
 import com.v2ray.ang.dto.ProfileItem
 import com.v2ray.ang.dto.V2rayConfig.OutboundBean
-import com.v2ray.ang.dto.V2rayConfig.OutboundBean.StreamSettingsBean
-import com.v2ray.ang.dto.V2rayConfig.OutboundBean.StreamSettingsBean.UdpMasksBean.UdpMasksSettingsBean
+import com.v2ray.ang.dto.V2rayConfig.OutboundBean.StreamSettingsBean.FinalMaskBean
+import com.v2ray.ang.enums.EConfigType
+import com.v2ray.ang.enums.NetworkType
 import com.v2ray.ang.extension.idnHost
 import com.v2ray.ang.extension.isNotNullEmpty
+import com.v2ray.ang.extension.nullIfBlank
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.V2rayConfigManager
 import com.v2ray.ang.util.Utils
@@ -26,7 +26,7 @@ object Hysteria2Fmt : FmtBase() {
         val config = ProfileItem.create(EConfigType.HYSTERIA2)
 
         val uri = URI(Utils.fixIllegalUrl(str))
-        config.remarks = Utils.urlDecode(uri.fragment.orEmpty()).let { if (it.isEmpty()) "none" else it }
+        config.remarks = Utils.decodeURIComponent(uri.fragment.orEmpty()).let { it.ifEmpty { "none" } }
         config.server = uri.idnHost
         config.serverPort = uri.port.toString()
         config.password = uri.userInfo
@@ -44,7 +44,7 @@ object Hysteria2Fmt : FmtBase() {
             if (config.portHopping.isNotNullEmpty()) {
                 config.portHoppingInterval = queryParam["mportHopInt"]
             }
-            config.pinSHA256 = queryParam["pinSHA256"]
+            config.pinnedCA256 = queryParam["pinSHA256"]
 
         }
 
@@ -61,8 +61,8 @@ object Hysteria2Fmt : FmtBase() {
         val dicQuery = HashMap<String, String>()
 
         config.security.let { if (it != null) dicQuery["security"] = it }
-        config.sni.let { if (it.isNotNullEmpty()) dicQuery["sni"] = it.orEmpty() }
-        config.alpn.let { if (it.isNotNullEmpty()) dicQuery["alpn"] = it.orEmpty() }
+        config.sni?.nullIfBlank()?.let { dicQuery["sni"] = it }
+        config.alpn?.nullIfBlank()?.let { dicQuery["alpn"] = it }
         config.insecure.let { dicQuery["insecure"] = if (it == true) "1" else "0" }
 
         if (config.obfsPassword.isNotNullEmpty()) {
@@ -75,8 +75,8 @@ object Hysteria2Fmt : FmtBase() {
         if (config.portHoppingInterval.isNotNullEmpty()) {
             dicQuery["mportHopInt"] = config.portHoppingInterval.orEmpty()
         }
-        if (config.pinSHA256.isNotNullEmpty()) {
-            dicQuery["pinSHA256"] = config.pinSHA256.orEmpty()
+        if (config.pinnedCA256.isNotNullEmpty()) {
+            dicQuery["pinSHA256"] = config.pinnedCA256.orEmpty()
         }
 
         return toUri(config, config.password, dicQuery)
@@ -108,11 +108,13 @@ object Hysteria2Fmt : FmtBase() {
         }
 
         if (profileItem.obfsPassword.isNotNullEmpty()) {
-            outboundBean.streamSettings?.udpmasks = mutableListOf(
-                StreamSettingsBean.UdpMasksBean(
-                    type = "salamander",
-                    settings = UdpMasksSettingsBean(
-                        password = profileItem.obfsPassword
+            outboundBean.streamSettings?.finalmask = FinalMaskBean(
+                udp = listOf(
+                    FinalMaskBean.MaskBean(
+                        type = "salamander",
+                        settings = FinalMaskBean.MaskBean.MaskSettingsBean(
+                            password = profileItem.obfsPassword
+                        )
                     )
                 )
             )
