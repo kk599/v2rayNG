@@ -16,8 +16,8 @@ import com.v2ray.ang.dto.ProfileItem
 import com.v2ray.ang.dto.RulesetItem
 import com.v2ray.ang.dto.SubscriptionItem
 import com.v2ray.ang.dto.V2rayConfig
-import com.v2ray.ang.dto.VpnInterfaceAddressConfig
-import com.v2ray.ang.dto.VpnAddressResult
+import com.v2ray.ang.enums.VpnInterfaceAddressConfig
+import com.v2ray.ang.enums.VpnAddressResult
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.Language
 import com.v2ray.ang.enums.RoutingType
