@@ -4,14 +4,14 @@ import com.tencent.mmkv.MMKV
 import com.v2ray.ang.AppConfig.DEFAULT_SUBSCRIPTION_ID
 import com.v2ray.ang.AppConfig.PREF_IS_BOOTED
 import com.v2ray.ang.AppConfig.PREF_ROUTING_RULESET
-import com.v2ray.ang.dto.AssetUrlCache
-import com.v2ray.ang.dto.AssetUrlItem
-import com.v2ray.ang.dto.ProfileItem
-import com.v2ray.ang.dto.RulesetItem
-import com.v2ray.ang.dto.ServerAffiliationInfo
-import com.v2ray.ang.dto.SubscriptionCache
-import com.v2ray.ang.dto.SubscriptionItem
-import com.v2ray.ang.dto.WebDavConfig
+import com.v2ray.ang.dto.entities.AssetUrlCache
+import com.v2ray.ang.dto.entities.AssetUrlItem
+import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.dto.entities.RulesetItem
+import com.v2ray.ang.dto.entities.ServerAffiliationInfo
+import com.v2ray.ang.dto.entities.SubscriptionCache
+import com.v2ray.ang.dto.entities.SubscriptionItem
+import com.v2ray.ang.dto.entities.WebDavConfig
 import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.Utils
 
@@ -102,7 +102,7 @@ object MmkvManager {
         return if (json.isNullOrBlank()) {
             mutableListOf()
         } else {
-            JsonUtil.fromJson(json, Array<String>::class.java)?.toMutableList() ?: mutableListOf()
+            JsonUtil.fromJsonSafe(json, Array<String>::class.java)?.toMutableList() ?: mutableListOf()
         }
     }
 
@@ -144,7 +144,7 @@ object MmkvManager {
         if (json.isNullOrBlank()) {
             return null
         }
-        return JsonUtil.fromJson(json, ProfileItem::class.java)
+        return JsonUtil.fromJsonSafe(json, ProfileItem::class.java)
     }
 
 
@@ -247,7 +247,7 @@ object MmkvManager {
         if (json.isNullOrBlank()) {
             return null
         }
-        return JsonUtil.fromJson(json, ServerAffiliationInfo::class.java)
+        return JsonUtil.fromJsonSafe(json, ServerAffiliationInfo::class.java)
     }
 
     /**
@@ -344,7 +344,7 @@ object MmkvManager {
 
     //region Subscriptions
 
-    private fun getSubscriptionId(subscriptionId: String?):String {
+    private fun getSubscriptionId(subscriptionId: String?): String {
         return subscriptionId?.ifEmpty { DEFAULT_SUBSCRIPTION_ID } ?: DEFAULT_SUBSCRIPTION_ID
     }
 
@@ -374,7 +374,7 @@ object MmkvManager {
         decodeSubsList().forEach { key ->
             val json = subStorage.decodeString(key)
             if (!json.isNullOrBlank()) {
-                val item = JsonUtil.fromJson(json, SubscriptionItem::class.java)?: SubscriptionItem()
+                val item = JsonUtil.fromJsonSafe(json, SubscriptionItem::class.java) ?: SubscriptionItem()
                 subscriptions.add(SubscriptionCache(key, item))
             }
         }
@@ -420,7 +420,7 @@ object MmkvManager {
      */
     fun decodeSubscription(subscriptionId: String): SubscriptionItem? {
         val json = subStorage.decodeString(subscriptionId) ?: return null
-        return JsonUtil.fromJson(json, SubscriptionItem::class.java)
+        return JsonUtil.fromJsonSafe(json, SubscriptionItem::class.java)
     }
 
     /**
@@ -442,7 +442,7 @@ object MmkvManager {
         return if (json.isNullOrBlank()) {
             mutableListOf()
         } else {
-            JsonUtil.fromJson(json, Array<String>::class.java)?.toMutableList()?: mutableListOf()
+            JsonUtil.fromJsonSafe(json, Array<String>::class.java)?.toMutableList() ?: mutableListOf()
         }
     }
 
@@ -460,7 +460,7 @@ object MmkvManager {
         assetStorage.allKeys()?.forEach { key ->
             val json = assetStorage.decodeString(key)
             if (!json.isNullOrBlank()) {
-                val item = JsonUtil.fromJson(json, AssetUrlItem::class.java)?: AssetUrlItem()
+                val item = JsonUtil.fromJsonSafe(json, AssetUrlItem::class.java) ?: AssetUrlItem()
                 assetUrlItems.add(AssetUrlCache(key, item))
             }
         }
@@ -495,7 +495,7 @@ object MmkvManager {
      */
     fun decodeAsset(assetid: String): AssetUrlItem? {
         val json = assetStorage.decodeString(assetid) ?: return null
-        return JsonUtil.fromJson(json, AssetUrlItem::class.java)
+        return JsonUtil.fromJsonSafe(json, AssetUrlItem::class.java)
     }
 
     //endregion
@@ -510,7 +510,7 @@ object MmkvManager {
     fun decodeRoutingRulesets(): MutableList<RulesetItem>? {
         val ruleset = settingsStorage.decodeString(PREF_ROUTING_RULESET)
         if (ruleset.isNullOrEmpty()) return null
-        return JsonUtil.fromJson(ruleset, Array<RulesetItem>::class.java)?.toMutableList()?: mutableListOf()
+        return JsonUtil.fromJsonSafe(ruleset, Array<RulesetItem>::class.java)?.toMutableList() ?: mutableListOf()
     }
 
     /**
@@ -679,6 +679,7 @@ object MmkvManager {
         return settingsStorage.decodeStringSet(key)
     }
 
+
     /**
      * Encodes the start on boot setting.
      *
@@ -713,7 +714,7 @@ object MmkvManager {
      */
     fun decodeWebDavConfig(): WebDavConfig? {
         val json = mainStorage.decodeString(KEY_WEBDAV_CONFIG) ?: return null
-        return JsonUtil.fromJson(json, WebDavConfig::class.java)
+        return JsonUtil.fromJsonSafe(json, WebDavConfig::class.java)
     }
 
     //endregion

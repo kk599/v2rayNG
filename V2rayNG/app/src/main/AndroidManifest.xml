@@ -30,15 +30,14 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"
+        tools:ignore="ForegroundServicesPolicy" />
     <uses-permission
         android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
         android:minSdkVersion="34" />
     <!-- <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /> -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
@@ -83,10 +82,17 @@
             android:exported="false"
             android:windowSoftInputMode="stateUnchanged" />
         <activity
+            android:name=".ui.ServerProxyChainActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateUnchanged" />
+        <activity
             android:name=".ui.SettingsActivity"
             android:exported="false" />
         <activity
             android:name=".ui.PerAppProxyActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.AppPickerActivity"
             android:exported="false" />
         <activity
             android:name=".ui.ScannerActivity"
@@ -122,6 +128,18 @@
             android:exported="false"
             android:process=":RunSoLibV2RayDaemon"
             android:theme="@style/AppThemeDayNight.NoActionBar.Translucent" />
+        <activity
+            android:name=".ui.ScStartActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:process=":RunSoLibV2RayDaemon"
+            android:theme="@style/AppThemeDayNight.NoActionBar.Translucent" />
+        <activity
+            android:name=".ui.ScStopActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:process=":RunSoLibV2RayDaemon"
+            android:theme="@style/AppThemeDayNight.NoActionBar.Translucent" />
 
         <activity
             android:name=".ui.UrlSchemeActivity"
@@ -153,7 +171,7 @@
             android:exported="false" />
 
         <service
-            android:name=".service.V2RayVpnService"
+            android:name=".service.CoreVpnService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse"
@@ -173,7 +191,7 @@
         </service>
 
         <service
-            android:name=".service.V2RayProxyOnlyService"
+            android:name=".service.CoreProxyOnlyService"
             android:exported="false"
             android:foregroundServiceType="specialUse"
             android:label="@string/app_name"
@@ -184,9 +202,14 @@
         </service>
 
         <service
-            android:name=".service.V2RayTestService"
+            android:name=".service.CoreTestService"
             android:exported="false"
-            android:process=":RunSoLibV2RayDaemon" />
+            android:foregroundServiceType="specialUse"
+            android:process=":RunSoLibV2RayDaemon">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="test" />
+        </service>
 
         <receiver
             android:name=".receiver.WidgetProvider"
@@ -257,6 +280,11 @@
                 tools:node="remove" />
 
         </provider>
+
+        <service
+            android:name="androidx.work.multiprocess.RemoteWorkManagerService"
+            android:exported="false"
+            android:process=":bg" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

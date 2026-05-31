@@ -9,14 +9,15 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
-import com.v2ray.ang.dto.ProfileItem
+import com.v2ray.ang.core.CoreServiceManager
+import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.extension.toSpeedString
 import com.v2ray.ang.ui.MainActivity
+import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,53 +43,15 @@ object NotificationManager {
      * Starts the speed notification.
      * @param currentConfig The current profile configuration.
      */
-    fun startSpeedNotification(currentConfig: ProfileItem?) {
+    fun startSpeedNotification() {
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_SPEED_ENABLED) != true) return
-        if (speedNotificationJob != null || V2RayServiceManager.isRunning() == false) return
+        if (speedNotificationJob != null || CoreServiceManager.isRunning() == false) return
 
         var lastZeroSpeed = false
-        val outboundTags = currentConfig?.getAllOutboundTags()
-        outboundTags?.remove(AppConfig.TAG_DIRECT)
 
         speedNotificationJob = CoroutineScope(Dispatchers.IO).launch {
             while (isActive) {
-                val queryTime = System.currentTimeMillis()
-                val sinceLastQueryIn = (queryTime - lastQueryTime)
-
-                // If the query interval is too short, skip this round to avoid excessive CPU usage
-                if (sinceLastQueryIn < QUERY_INTERVAL_MS) {
-                    Log.w(AppConfig.TAG, "Query interval too short: ${sinceLastQueryIn}ms, skipping")
-                    lastQueryTime = queryTime
-                    delay(QUERY_INTERVAL_MS)
-                    continue
-                }
-                val sinceLastQueryInSeconds = sinceLastQueryIn / 1000.0
-
-                var proxyTotal = 0L
-                val text = StringBuilder()
-                outboundTags?.forEach {
-                    val up = V2RayServiceManager.queryStats(it, AppConfig.UPLINK)
-                    val down = V2RayServiceManager.queryStats(it, AppConfig.DOWNLINK)
-                    if (up + down > 0) {
-                        appendSpeedString(text, it, up / sinceLastQueryInSeconds, down / sinceLastQueryInSeconds)
-                        proxyTotal += up + down
-                    }
-                }
-                val directUplink = V2RayServiceManager.queryStats(AppConfig.TAG_DIRECT, AppConfig.UPLINK)
-                val directDownlink = V2RayServiceManager.queryStats(AppConfig.TAG_DIRECT, AppConfig.DOWNLINK)
-                val zeroSpeed = proxyTotal == 0L && directUplink == 0L && directDownlink == 0L
-                if (!zeroSpeed || !lastZeroSpeed) {
-                    if (proxyTotal == 0L) {
-                        appendSpeedString(text, outboundTags?.firstOrNull(), 0.0, 0.0)
-                    }
-                    appendSpeedString(
-                        text, AppConfig.TAG_DIRECT, directUplink / sinceLastQueryInSeconds,
-                        directDownlink / sinceLastQueryInSeconds
-                    )
-                    updateNotification(text.toString(), proxyTotal, directDownlink + directUplink)
-                }
-                lastZeroSpeed = zeroSpeed
-                lastQueryTime = queryTime
+                lastZeroSpeed = updateSpeedNotificationOnce(lastZeroSpeed)
                 delay(QUERY_INTERVAL_MS)
             }
         }
@@ -167,13 +130,12 @@ object NotificationManager {
 
     /**
      * Stops the speed notification.
-     * @param currentConfig The current profile configuration.
      */
-    fun stopSpeedNotification(currentConfig: ProfileItem?) {
+    fun stopSpeedNotification() {
         speedNotificationJob?.let {
             it.cancel()
             speedNotificationJob = null
-            updateNotification(currentConfig?.remarks, 0, 0)
+            updateNotification("", 0, 0)
         }
     }
 
@@ -247,10 +209,73 @@ object NotificationManager {
     }
 
     /**
+     * Updates the speed notification once.
+     * Queries traffic stats, separates proxy and direct, and updates the notification.
+     * @param lastZeroSpeed The previous zero speed state.
+     * @return The current zero speed state.
+     */
+    private fun updateSpeedNotificationOnce(lastZeroSpeed: Boolean): Boolean {
+        val queryTime = System.currentTimeMillis()
+        val sinceLastQueryIn = (queryTime - lastQueryTime)
+
+        // If the query interval is too short, skip this round to avoid excessive CPU usage
+        if (sinceLastQueryIn < QUERY_INTERVAL_MS) {
+            LogUtil.w(AppConfig.TAG, "Query interval too short: ${sinceLastQueryIn}ms, skipping")
+            lastQueryTime = queryTime
+            return lastZeroSpeed
+        }
+        val sinceLastQueryInSeconds = sinceLastQueryIn / 1000.0
+
+        var proxyUplink = 0L
+        var proxyDownlink = 0L
+        var directUplink = 0L
+        var directDownlink = 0L
+
+        CoreServiceManager.queryAllOutboundTrafficStats().forEach { stat ->
+            when {
+                stat.tag == AppConfig.TAG_DIRECT -> {
+                    when (stat.direction) {
+                        AppConfig.UPLINK -> directUplink += stat.value
+                        AppConfig.DOWNLINK -> directDownlink += stat.value
+                    }
+                }
+
+                stat.tag.startsWith(AppConfig.TAG_PROXY) -> {
+                    when (stat.direction) {
+                        AppConfig.UPLINK -> proxyUplink += stat.value
+                        AppConfig.DOWNLINK -> proxyDownlink += stat.value
+                    }
+                }
+            }
+        }
+
+        val proxyTotal = proxyUplink + proxyDownlink
+        val directTotal = directUplink + directDownlink
+        val zeroSpeed = proxyTotal + directTotal == 0L
+        if (!zeroSpeed || !lastZeroSpeed) {
+            val text = StringBuilder()
+            appendSpeedString(
+                text, AppConfig.TAG_PROXY,
+                proxyUplink / sinceLastQueryInSeconds,
+                proxyDownlink / sinceLastQueryInSeconds
+            )
+
+            appendSpeedString(
+                text, AppConfig.TAG_DIRECT,
+                directUplink / sinceLastQueryInSeconds,
+                directDownlink / sinceLastQueryInSeconds
+            )
+            updateNotification(text.toString(), proxyTotal, directTotal)
+        }
+        lastQueryTime = queryTime
+        return zeroSpeed
+    }
+
+    /**
      * Gets the service instance.
      * @return The service instance.
      */
     private fun getService(): Service? {
-        return V2RayServiceManager.serviceControl?.get()?.getService()
+        return CoreServiceManager.serviceControl?.get()?.getService()
     }
 }

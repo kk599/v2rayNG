@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.AssetManager
-import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
@@ -15,17 +14,19 @@ import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
 import com.v2ray.ang.dto.GroupMapItem
-import com.v2ray.ang.dto.ServersCache
-import com.v2ray.ang.dto.SubscriptionCache
 import com.v2ray.ang.dto.SubscriptionUpdateResult
 import com.v2ray.ang.dto.TestServiceMessage
-import com.v2ray.ang.extension.serializable
+import com.v2ray.ang.dto.entities.ServersCache
+import com.v2ray.ang.dto.entities.SubscriptionCache
+import com.v2ray.ang.extension.isComplexType
+import com.v2ray.ang.extension.matchesPattern
 import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.handler.SpeedtestManager
+import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.MessageUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +36,7 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Collections
+import java.util.regex.PatternSyntaxException
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var serverList = mutableListOf<String>() // MmkvManager.decodeServerList()
@@ -64,7 +66,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         getApplication<AngApplication>().unregisterReceiver(mMsgReceiver)
         tcpingTestScope.coroutineContext[Job]?.cancelChildren()
         SpeedtestManager.closeAllTcpSockets()
-        Log.i(AppConfig.TAG, "Main ViewModel is cleared")
+        LogUtil.i(AppConfig.TAG, "Main ViewModel is cleared")
         super.onCleared()
     }
 
@@ -117,7 +119,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     @Synchronized
     fun updateCache() {
         serversCache.clear()
-        val kw = keywordFilter.trim().lowercase()
+        val kw = keywordFilter.trim()
+        val searchRegex = try {
+            if (kw.isNotEmpty()) Regex(kw, setOf(RegexOption.IGNORE_CASE)) else null
+        } catch (e: PatternSyntaxException) {
+            null // Fallback to literal search if regex is invalid
+        }
         for (guid in serverList) {
             val profile = MmkvManager.decodeServerConfig(guid) ?: continue
             if (kw.isEmpty()) {
@@ -125,11 +132,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 continue
             }
 
-            val remarks = profile.remarks.lowercase()
-            val description = profile.description.orEmpty().lowercase()
-            val server = profile.server.orEmpty().lowercase()
-
-            if (remarks.contains(kw) || description.contains(kw) || server.contains(kw)) {
+            val remarks = profile.remarks
+            val description = profile.description.orEmpty()
+            val server = profile.server.orEmpty()
+            val protocol = profile.configType.name
+            if (remarks.matchesPattern(searchRegex, kw)
+                || description.matchesPattern(searchRegex, kw)
+                || server.matchesPattern(searchRegex, kw)
+                || protocol.matchesPattern(searchRegex, kw)
+            ) {
                 serversCache.add(ServersCache(guid, profile))
             }
         }
@@ -211,7 +222,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             MessageUtil.sendMsg2TestService(
                 getApplication(),
                 TestServiceMessage(
-                    key = AppConfig.MSG_MEASURE_CONFIG,
+                    key = AppConfig.MSG_MEASURE_CONFIG_START,
                     subscriptionId = subscriptionId,
                     serverGuids = if (keywordFilter.isNotEmpty()) serversCache.map { it.guid } else emptyList()
                 )
@@ -286,16 +297,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Removes duplicate servers.
+     * Excludes servers with complex types (Custom, PolicyGroup, or ProxyChain) from duplicate comparison.
      * @return The number of removed servers.
      */
     fun removeDuplicateServer(): Int {
         val serversCacheCopy = serversCache.toList().toMutableList()
         val deleteServer = mutableListOf<String>()
+
         serversCacheCopy.forEachIndexed { index, sc ->
             val profile = sc.profile
+            // Skip if this profile has a complex config type
+            if (profile.configType.isComplexType()) {
+                return@forEachIndexed
+            }
+
             serversCacheCopy.forEachIndexed { index2, sc2 ->
                 if (index2 > index) {
                     val profile2 = sc2.profile
+                    // Skip if the second profile has a complex config type
+                    if (profile2.configType.isComplexType()) {
+                        return@forEachIndexed
+                    }
+
                     if (profile == profile2 && !deleteServer.contains(sc2.guid)) {
                         deleteServer.add(sc2.guid)
                     }
@@ -446,7 +469,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 AppConfig.MSG_STATE_START_FAILURE -> {
-                    getApplication<AngApplication>().toastError(R.string.toast_services_failure)
+                    val errorMessage = intent.getStringExtra("content")
+                    if (!errorMessage.isNullOrBlank()) {
+                        getApplication<AngApplication>().toastError(errorMessage)
+                    } else {
+                        getApplication<AngApplication>().toastError(R.string.toast_services_failure)
+                    }
                     isRunning.value = false
                 }
 
@@ -459,9 +487,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 AppConfig.MSG_MEASURE_CONFIG_SUCCESS -> {
-                    val resultPair = intent.serializable<Pair<String, Long>>("content") ?: return
-                    MmkvManager.encodeServerTestDelayMillis(resultPair.first, resultPair.second)
-                    updateListAction.value = getPosition(resultPair.first)
+                    val content = intent.getStringExtra("content")
+                    updateListAction.value = getPosition(content ?: "")
                 }
 
                 AppConfig.MSG_MEASURE_CONFIG_NOTIFY -> {

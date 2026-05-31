@@ -1,16 +1,13 @@
 package com.v2ray.ang.fmt
 
 import com.v2ray.ang.AppConfig
-import com.v2ray.ang.dto.ProfileItem
-import com.v2ray.ang.dto.V2rayConfig.OutboundBean
-import com.v2ray.ang.dto.V2rayConfig.OutboundBean.StreamSettingsBean.FinalMaskBean
+import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.NetworkType
 import com.v2ray.ang.extension.idnHost
 import com.v2ray.ang.extension.isNotNullEmpty
 import com.v2ray.ang.extension.nullIfBlank
 import com.v2ray.ang.handler.MmkvManager
-import com.v2ray.ang.handler.V2rayConfigManager
 import com.v2ray.ang.util.Utils
 import java.net.URI
 
@@ -21,7 +18,7 @@ object Hysteria2Fmt : FmtBase() {
      * @param str the Hysteria2 URI string to parse
      * @return the parsed ProfileItem object, or null if parsing fails
      */
-    fun parse(str: String): ProfileItem? {
+    fun parse(str: String): ProfileItem {
         var allowInsecure = MmkvManager.decodeSettingsBool(AppConfig.PREF_ALLOW_INSECURE, false)
         val config = ProfileItem.create(EConfigType.HYSTERIA2)
 
@@ -73,52 +70,42 @@ object Hysteria2Fmt : FmtBase() {
             dicQuery["mport"] = config.portHopping.orEmpty()
         }
         if (config.portHoppingInterval.isNotNullEmpty()) {
-            dicQuery["mportHopInt"] = config.portHoppingInterval.orEmpty()
+            val rawInterval = config.portHoppingInterval?.trim().nullIfBlank()
+            val interval = if (rawInterval == null) {
+                null
+            } else {
+                val singleValue = rawInterval.toIntOrNull()
+                if (singleValue != null) {
+                    if (singleValue < 5) {
+                        null
+                    } else {
+                        rawInterval
+                    }
+                } else {
+                    val parts = rawInterval.split('-')
+                    if (parts.size == 2) {
+                        val start = parts[0].trim().toIntOrNull()
+                        val end = parts[1].trim().toIntOrNull()
+                        if (start != null && end != null) {
+                            val minStart = maxOf(5, start)
+                            val minEnd = maxOf(minStart, end)
+                            (minStart + minEnd) / 2
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                }
+            }
+            if (interval != null) {
+                dicQuery["mportHopInt"] = interval.toString()
+            }
         }
         if (config.pinnedCA256.isNotNullEmpty()) {
             dicQuery["pinSHA256"] = config.pinnedCA256.orEmpty()
         }
 
         return toUri(config, config.password, dicQuery)
-    }
-
-    /**
-     * Converts a ProfileItem object to an OutboundBean object.
-     *
-     * @param profileItem the ProfileItem object to convert
-     * @return the converted OutboundBean object, or null if conversion fails
-     */
-    fun toOutbound(profileItem: ProfileItem): OutboundBean? {
-        val outboundBean = V2rayConfigManager.createInitOutbound(EConfigType.HYSTERIA2) ?: return null
-        profileItem.network = NetworkType.HYSTERIA.type
-        profileItem.alpn = "h3"
-
-        outboundBean.settings?.let { server ->
-            server.address = getServerAddress(profileItem)
-            server.port = profileItem.serverPort.orEmpty().toInt()
-            server.version = 2
-        }
-
-        val sni = outboundBean.streamSettings?.let {
-            V2rayConfigManager.populateTransportSettings(it, profileItem)
-        }
-
-        outboundBean.streamSettings?.let {
-            V2rayConfigManager.populateTlsSettings(it, profileItem, sni)
-        }
-
-        if (profileItem.obfsPassword.isNotNullEmpty()) {
-            outboundBean.streamSettings?.finalmask = FinalMaskBean(
-                udp = listOf(
-                    FinalMaskBean.MaskBean(
-                        type = "salamander",
-                        settings = FinalMaskBean.MaskBean.MaskSettingsBean(
-                            password = profileItem.obfsPassword
-                        )
-                    )
-                )
-            )
-        }
-        return outboundBean
     }
 }

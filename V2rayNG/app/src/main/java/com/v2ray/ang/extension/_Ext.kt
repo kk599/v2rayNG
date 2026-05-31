@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import com.v2ray.ang.AngApplication
+import com.v2ray.ang.enums.EConfigType
 import es.dmoral.toasty.Toasty
 import java.io.Serializable
 import java.net.URI
@@ -189,4 +190,33 @@ fun String.concatUrl(vararg paths: String): String {
     }
 
     return builder.toString()
+}
+
+/**
+ * Helper function to match text either by Regex or literal string.
+ */
+fun String.matchesPattern(regex: Regex?, keyword: String?, ignoreCase: Boolean = true): Boolean {
+    if (keyword.isNullOrEmpty()) {
+        return true
+    }
+    return regex?.containsMatchIn(this)
+        ?: this.contains(keyword, ignoreCase = ignoreCase)
+}
+
+/**
+ * Checks if the config type is a group type (PolicyGroup or ProxyChain).
+ *
+ * @return True if the config type is PolicyGroup or ProxyChain, false otherwise.
+ */
+fun EConfigType.isGroupType(): Boolean {
+    return this == EConfigType.POLICYGROUP || this == EConfigType.PROXYCHAIN
+}
+
+/**
+ * Checks if the config type is a complex type (Custom, PolicyGroup, or ProxyChain).
+ *
+ * @return True if the config type is Custom, PolicyGroup, or ProxyChain, false otherwise.
+ */
+fun EConfigType.isComplexType(): Boolean {
+    return this == EConfigType.CUSTOM || this == EConfigType.POLICYGROUP || this == EConfigType.PROXYCHAIN
 }
