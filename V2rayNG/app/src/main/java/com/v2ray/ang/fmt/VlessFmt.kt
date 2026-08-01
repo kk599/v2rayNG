@@ -1,10 +1,8 @@
 package com.v2ray.ang.fmt
 
-import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.idnHost
-import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.Utils
 import java.net.URI
 
@@ -17,7 +15,6 @@ object VlessFmt : FmtBase() {
      * @return the parsed ProfileItem object, or null if parsing fails
      */
     fun parse(str: String): ProfileItem? {
-        var allowInsecure = MmkvManager.decodeSettingsBool(AppConfig.PREF_ALLOW_INSECURE, false)
         val config = ProfileItem.create(EConfigType.VLESS)
 
         val uri = URI(Utils.fixIllegalUrl(str))
@@ -30,7 +27,7 @@ object VlessFmt : FmtBase() {
         config.password = uri.userInfo
         config.method = queryParam["encryption"] ?: "none"
 
-        getItemFormQuery(config, queryParam, allowInsecure)
+        getItemFormQuery(config, queryParam)
 
         return config
     }

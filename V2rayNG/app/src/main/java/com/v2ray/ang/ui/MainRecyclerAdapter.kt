@@ -1,4 +1,3 @@
-
 package com.v2ray.ang.ui
 
 import android.annotation.SuppressLint
@@ -159,8 +158,12 @@ class MainRecyclerAdapter(
 
         // Security: hide blank or tls
         profile.security?.let { sec ->
-            if (sec.isNotBlank() && !sec.equals("tls", ignoreCase = true)) {
-                parts.add(sec)
+            if (sec.isNotBlank()) {
+                if (profile.insecure == true && sec.equals("tls", ignoreCase = true)) {
+                    parts.add("$sec insecure") // TODO
+                } else {
+                    parts.add(sec)
+                }
             }
         }
 

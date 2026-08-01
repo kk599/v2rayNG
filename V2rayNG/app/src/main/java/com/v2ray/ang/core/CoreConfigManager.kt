@@ -166,8 +166,9 @@ object CoreConfigManager {
         // User routing rules (policyGroupBalancerTags rewrites TAG_PROXY→balancer when main is POLICYGROUP).
         configureRouting(configContext, v2rayConfig, policyGroupBalancerTags)
         configureFakeDns(v2rayConfig)
-        configureDns(v2rayConfig, policyGroupBalancerTags)
-        configureLocalDns(v2rayConfig)
+        configureDns(configContext, v2rayConfig, policyGroupBalancerTags)
+        configureLocalDns(configContext, v2rayConfig)
+        configureRootModeDns(v2rayConfig)
 
         // (added by getDns / getCustomLocalDns) to use the balancer, then add
         // the catch-all balancer rule.
@@ -452,8 +453,10 @@ object CoreConfigManager {
         val vpn = SettingsManager.isVpnMode()
         val useHev = SettingsManager.isUsingHevTun()
         val forcedByHev = vpn && useHev
+        val forcedBySocksRoot = SettingsManager.isRootMode()
+                || MmkvManager.decodeSettingsBool(AppConfig.PREF_ROOT_LAN_SHARING)
 
-        val enableLocalProxy = forcedByHev || MmkvManager.decodeSettingsBool(AppConfig.PREF_ENABLE_LOCAL_PROXY, true)
+        val enableLocalProxy = forcedByHev || forcedBySocksRoot || MmkvManager.decodeSettingsBool(AppConfig.PREF_ENABLE_LOCAL_PROXY, true)
 
         val socksPort = SettingsManager.getSocksPort()
         val socksUsername = SettingsManager.getSocksUsername()
@@ -567,16 +570,20 @@ object CoreConfigManager {
     /**
      * Configure local DNS inbounds, outbounds, and routing rules.
      */
-    private fun configureLocalDns(v2rayConfig: V2rayConfig) {
+    private fun configureLocalDns(configContext: CoreConfigContext, v2rayConfig: V2rayConfig) {
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_LOCAL_DNS_ENABLED) != true) {
             return
         }
 
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_FAKE_DNS_ENABLED) == true) {
             val geositeCn = arrayListOf(AppConfig.GEOSITE_CN)
-            val proxyDomain = collectUserRuleDomainsByTag(AppConfig.TAG_PROXY)
-            val directDomain = collectUserRuleDomainsByTag(AppConfig.TAG_DIRECT)
-            val finalDomain = geositeCn.plus(proxyDomain).plus(directDomain).distinct()
+            val routingDomains = configContext.routingDomainRules
+                .asSequence()
+                .filter { it.outboundTag != AppConfig.TAG_BLOCKED }
+                .flatMap { it.domain.asSequence() }
+                .toList()
+                .distinct()
+            val finalDomain = geositeCn + routingDomains
             // fakedns with all domains to make it always top priority
             v2rayConfig.dns?.servers?.add(
                 0,
@@ -623,6 +630,39 @@ object CoreConfigManager {
     }
 
     /**
+     * In the root mode the whole device's traffic (incl. raw DNS) is funneled
+     * into the core's SOCKS inbound, exactly like the VPN+hev path. Hijack port-53 to the
+     * core's DNS module so queries are resolved via the configured resolver through the
+     * proxy instead of leaking to (or being mis-resolved by) the local network resolver.
+     * Independent of the local-DNS toggle, which is not exposed for root mode.
+     */
+    private fun configureRootModeDns(v2rayConfig: V2rayConfig) {
+        if (!SettingsManager.isRootMode()) return
+
+        if (v2rayConfig.routing.rules.none { it.outboundTag == "dns-out" && it.port == "53" }) {
+            v2rayConfig.routing.rules.add(
+                0,
+                V2rayConfig.RoutingBean.RulesBean(
+                    inboundTag = arrayListOf("socks"),
+                    outboundTag = "dns-out",
+                    port = "53",
+                )
+            )
+        }
+        if (v2rayConfig.outbounds.none { it.protocol == "dns" && it.tag == "dns-out" }) {
+            v2rayConfig.outbounds.add(
+                V2rayConfig.OutboundBean(
+                    protocol = "dns",
+                    tag = "dns-out",
+                    settings = null,
+                    streamSettings = null,
+                    mux = null
+                )
+            )
+        }
+    }
+
+    /**
      * Remove speed-test runtime sections when the feature is disabled.
      */
     private fun applySpeedDisabled(v2rayConfig: V2rayConfig) {
@@ -632,6 +672,7 @@ object CoreConfigManager {
         }
     }
 
+    /*
     /**
      * Configure DNS servers, hosts, and DNS routing rules.
      */
@@ -710,12 +751,18 @@ object CoreConfigManager {
 
         // hardcode popular Android Private DNS rule to fix localhost DNS problem
         hosts[AppConfig.DNS_ALIDNS_DOMAIN] = AppConfig.DNS_ALIDNS_ADDRESSES
+        hosts[AppConfig.DNS_CISCO_SSE_DOMAIN] = AppConfig.DNS_CISCO_SSE_ADDRESSES
+        hosts[AppConfig.DNS_CISCO_UMBRELLA_DOMAIN] = AppConfig.DNS_CISCO_UMBRELLA_ADDRESSES
         hosts[AppConfig.DNS_CLOUDFLARE_ONE_DOMAIN] = AppConfig.DNS_CLOUDFLARE_ONE_ADDRESSES
+        hosts[AppConfig.DNS_CLOUDFLARE_ONEDOT_DNS_DOMAIN] = AppConfig.DNS_CLOUDFLARE_ONEDOT_DNS_ADDRESSES
         hosts[AppConfig.DNS_CLOUDFLARE_DNS_COM_DOMAIN] = AppConfig.DNS_CLOUDFLARE_DNS_COM_ADDRESSES
         hosts[AppConfig.DNS_CLOUDFLARE_DNS_DOMAIN] = AppConfig.DNS_CLOUDFLARE_DNS_ADDRESSES
-        hosts[AppConfig.DNS_DNSPOD_DOMAIN] = AppConfig.DNS_DNSPOD_ADDRESSES
+        hosts[AppConfig.DNS_CLOUDFLARE_WARP_DOMAIN] = AppConfig.DNS_CLOUDFLARE_WARP_ADDRESSES
+        hosts[AppConfig.DNS_DNSPOD_DOH_DOMAIN] = AppConfig.DNS_DNSPOD_DOH_ADDRESSES
+        hosts[AppConfig.DNS_DNSPOD_DOT_DOMAIN] = AppConfig.DNS_DNSPOD_DOT_ADDRESSES
         hosts[AppConfig.DNS_GOOGLE_DOMAIN] = AppConfig.DNS_GOOGLE_ADDRESSES
         hosts[AppConfig.DNS_QUAD9_DOMAIN] = AppConfig.DNS_QUAD9_ADDRESSES
+        hosts[AppConfig.DNS_SB_DOMAIN] = AppConfig.DNS_SB_ADDRESSES
         hosts[AppConfig.DNS_YANDEX_DOMAIN] = AppConfig.DNS_YANDEX_ADDRESSES
 
         //User DNS hosts
@@ -765,7 +812,188 @@ object CoreConfigManager {
             )
         }
     }
+    */
 
+    /**
+     * Configure DNS servers, hosts, and DNS routing rules.
+     */
+    private fun configureDns(
+        configContext: CoreConfigContext,
+        v2rayConfig: V2rayConfig,
+        policyGroupBalancerTags: Map<String, String>,
+    ) {
+        val servers = ArrayList<Any>()
+        val remoteDns = SettingsManager.getRemoteDnsServers()
+        val domesticDns = SettingsManager.getDomesticDnsServers()
+
+        remoteDns.forEach { servers.add(it) }
+
+        val hosts = buildDnsHostsFromRoutingRules(configContext)
+        val cnDomesticDnsTags = buildDnsCnModeFromRoutingRules(configContext, servers, domesticDns)
+        val domesticDnsTags = buildDnsFromRoutingRules(
+            configContext = configContext,
+            servers = servers,
+            remoteDns = remoteDns,
+            domesticDns = domesticDns
+        )
+        domesticDnsTags.addAll(cnDomesticDnsTags)
+
+        v2rayConfig.dns = V2rayConfig.DnsBean(
+            servers = servers,
+            hosts = hosts,
+            tag = AppConfig.TAG_DNS,
+            enableParallelQuery = if ((domesticDns.size + remoteDns.size) > 2) true else null
+        )
+
+        if (domesticDnsTags.isNotEmpty()) {
+            v2rayConfig.routing.rules.add(
+                V2rayConfig.RoutingBean.RulesBean(
+                    outboundTag = AppConfig.TAG_DIRECT,
+                    inboundTag = ArrayList(domesticDnsTags),
+                    domain = null
+                )
+            )
+        }
+
+        val dnsProxyBalancerTag = policyGroupBalancerTags[AppConfig.TAG_PROXY]
+        if (dnsProxyBalancerTag != null) {
+            v2rayConfig.routing.rules.add(
+                V2rayConfig.RoutingBean.RulesBean(
+                    balancerTag = dnsProxyBalancerTag,
+                    inboundTag = arrayListOf(AppConfig.TAG_DNS),
+                    domain = null
+                )
+            )
+        } else {
+            v2rayConfig.routing.rules.add(
+                V2rayConfig.RoutingBean.RulesBean(
+                    outboundTag = AppConfig.TAG_PROXY,
+                    inboundTag = arrayListOf(AppConfig.TAG_DNS),
+                    domain = null
+                )
+            )
+        }
+    }
+
+    private fun buildDnsHostsFromRoutingRules(configContext: CoreConfigContext): MutableMap<String, Any> {
+        val hosts = mutableMapOf<String, Any>()
+
+        val blockDomains = configContext.routingDomainRules
+            .asSequence()
+            .filter { it.outboundTag == AppConfig.TAG_BLOCKED }
+            .flatMap { it.domain.asSequence() }
+            .toList()
+        if (blockDomains.isNotEmpty()) {
+            hosts.putAll(blockDomains.map { it to AppConfig.LOOPBACK })
+        }
+
+        hosts[AppConfig.GOOGLEAPIS_CN_DOMAIN] = AppConfig.GOOGLEAPIS_COM_DOMAIN
+        hosts[AppConfig.DNS_ALIDNS_DOMAIN] = AppConfig.DNS_ALIDNS_ADDRESSES
+        hosts[AppConfig.DNS_CISCO_SSE_DOMAIN] = AppConfig.DNS_CISCO_SSE_ADDRESSES
+        hosts[AppConfig.DNS_CISCO_UMBRELLA_DOMAIN] = AppConfig.DNS_CISCO_UMBRELLA_ADDRESSES
+        hosts[AppConfig.DNS_CLOUDFLARE_ONE_DOMAIN] = AppConfig.DNS_CLOUDFLARE_ONE_ADDRESSES
+        hosts[AppConfig.DNS_CLOUDFLARE_ONEDOT_DNS_DOMAIN] = AppConfig.DNS_CLOUDFLARE_ONEDOT_DNS_ADDRESSES
+        hosts[AppConfig.DNS_CLOUDFLARE_DNS_COM_DOMAIN] = AppConfig.DNS_CLOUDFLARE_DNS_COM_ADDRESSES
+        hosts[AppConfig.DNS_CLOUDFLARE_DNS_DOMAIN] = AppConfig.DNS_CLOUDFLARE_DNS_ADDRESSES
+        hosts[AppConfig.DNS_CLOUDFLARE_WARP_DOMAIN] = AppConfig.DNS_CLOUDFLARE_WARP_ADDRESSES
+        hosts[AppConfig.DNS_DNSPOD_DOH_DOMAIN] = AppConfig.DNS_DNSPOD_DOH_ADDRESSES
+        hosts[AppConfig.DNS_DNSPOD_DOT_DOMAIN] = AppConfig.DNS_DNSPOD_DOT_ADDRESSES
+        hosts[AppConfig.DNS_GOOGLE_DOMAIN] = AppConfig.DNS_GOOGLE_ADDRESSES
+        hosts[AppConfig.DNS_QUAD9_DOMAIN] = AppConfig.DNS_QUAD9_ADDRESSES
+        hosts[AppConfig.DNS_SB_DOMAIN] = AppConfig.DNS_SB_ADDRESSES
+        hosts[AppConfig.DNS_YANDEX_DOMAIN] = AppConfig.DNS_YANDEX_ADDRESSES
+
+        val userHosts = MmkvManager.decodeSettingsString(AppConfig.PREF_DNS_HOSTS)
+        if (userHosts.isNotNullEmpty()) {
+            val userHostsMap = userHosts?.split(",").orEmpty()
+                .filter { it.isNotEmpty() }
+                .filter { it.contains(":") }
+                .associate { it.split(":").let { (k, v) -> k to v } }
+            hosts.putAll(userHostsMap)
+        }
+
+        return hosts
+    }
+
+    private fun buildDnsCnModeFromRoutingRules(configContext: CoreConfigContext, servers: ArrayList<Any>, domesticDns: List<String>,    ): List<String> {
+        val cnRegionFilter = { domain: String ->
+            domain.startsWith("geosite:") && (domain.endsWith("-cn") || domain.endsWith("@cn"))
+                    || domain == AppConfig.GEOSITE_CN
+        }
+        val isCnRoutingMode = configContext.routingDomainRules
+            .asSequence()
+            .filter { it.outboundTag == AppConfig.TAG_DIRECT }
+            .flatMap { it.domain.asSequence() }
+            .any { it == AppConfig.GEOSITE_CN }
+
+        if (!isCnRoutingMode) {
+            return emptyList()
+        }
+
+        val geoipCn = arrayListOf(AppConfig.GEOIP_CN)
+        val cnDomains = configContext.routingDomainRules
+            .asSequence()
+            .filter { it.outboundTag == AppConfig.TAG_DIRECT }
+            .flatMap { it.domain.asSequence() }
+            .filter { cnRegionFilter(it) }
+            .toList()
+        if (cnDomains.isEmpty()) {
+            return emptyList()
+        }
+
+        val cnDomesticDnsTags = mutableListOf<String>()
+        domesticDns.forEachIndexed { index, address ->
+            val cnDomesticDnsTag = "${AppConfig.TAG_DOMESTIC_DNS}_cn_expect_${index}"
+            servers.add(
+                V2rayConfig.DnsBean.ServersBean(
+                    address = address,
+                    domains = cnDomains,
+                    expectIPs = geoipCn,
+                    skipFallback = true,
+                    tag = cnDomesticDnsTag
+                )
+            )
+            cnDomesticDnsTags.add(cnDomesticDnsTag)
+        }
+        return cnDomesticDnsTags
+    }
+
+    private fun buildDnsFromRoutingRules(
+        configContext: CoreConfigContext,
+        servers: ArrayList<Any>,
+        remoteDns: List<String>,
+        domesticDns: List<String>,
+    ): MutableList<String> {
+        val domesticDnsTags = mutableListOf<String>()
+        configContext.routingDomainRules.forEachIndexed { ruleIndex, rule ->
+            when (rule.outboundTag) {
+                AppConfig.TAG_DIRECT -> {
+                    domesticDns.forEachIndexed { dnsIndex, address ->
+                        val tag = "${AppConfig.TAG_DOMESTIC_DNS}_${ruleIndex}_$dnsIndex"
+                        servers.add(
+                            V2rayConfig.DnsBean.ServersBean(
+                                address = address,
+                                domains = rule.domain,
+                                skipFallback = true,
+                                tag = tag
+                            )
+                        )
+                        domesticDnsTags.add(tag)
+                    }
+                }
+                AppConfig.TAG_BLOCKED -> Unit
+                else -> {
+                    servers.add(
+                        V2rayConfig.DnsBean.ServersBean(
+                            address = remoteDns.first(),
+                            domains = rule.domain,
+                        )
+                    )
+                }
+            }
+        }
+        return domesticDnsTags
+    }
 
     //endregion
 

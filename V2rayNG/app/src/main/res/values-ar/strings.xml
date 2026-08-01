@@ -118,7 +118,11 @@
     <string name="server_lab_xhttp_extra">XHTTP Extra raw JSON, format: { XHTTPObject }</string>
     <string name="server_lab_final_mask">finalMask raw JSON, format: { FinalMaskObject }</string>
     <string name="server_lab_ech_config_list">EchConfigList</string>
+    <string name="server_lab_verify_peer_cert_by_name">Verify Peer Cert By Name</string>
     <string name="server_lab_pinned_ca256">Certificate fingerprint (SHA-256)</string>
+    <string name="pinned_ca256_action_fetch">Fetch and fill certificate fingerprint</string>
+    <string name="toast_fetch_cert_sha256_success">Certificate fingerprint fetched successfully</string>
+    <string name="toast_fetch_cert_sha256_failed">Failed to fetch certificate fingerprint</string>
 
     <!-- UserAssetActivity -->
     <string name="toast_asset_copy_failed">فشل نسخ الملف، يرجى استخدام مدير الملفات</string>
@@ -220,9 +224,6 @@
     <string name="summary_pref_proxy_sharing_enabled">يمكن للأجهزة الأخرى الاتصال بالبروكسي بواسطة عنوان IP الخاص بك من خلال socks/http، يتم التمكين فقط في الشبكة الموثوقة لتجنب الاتصال غير المصرح به</string>
     <string name="toast_warning_pref_proxysharing_short">السماح بالاتصالات من الشبكة المحلية، تأكد من أنك في شبكة موثوقة</string>
 
-    <string name="title_pref_allow_insecure">السماح غير الآمن</string>
-    <string name="summary_pref_allow_insecure">عند TLS، الافتراضي هو السماح غير الآمن</string>
-
     <string name="title_pref_socks_port">منفذ بروكسي Local</string>
     <string name="title_pref_enable_local_proxy">تفعيل الوكيل المحلي</string>
     <string name="summary_pref_enable_local_proxy">When disabled, no SOCKS proxy is available, so subscription updates and similar actions cannot use the proxy</string>
@@ -305,7 +306,6 @@
     <string name="sub_setting_pre_profile_tip">The configuration remarks exists and is unique</string>
     <string name="toast_invalid_update_interval">فاصل التحديث غير صالح. الحد الأدنى هو 15 دقيقة.</string>
     <string name="title_sub_update">تحديث الاشتراك (أول خطوة)</string>
-    <string name="title_ping_all_server">Tcping لجميع الإعدادات</string>
     <string name="title_real_ping_all_server"> اختبر جميع الإعدادات (3)</string>
     <string name="title_user_asset_setting">Asset files</string>
     <string name="title_sort_by_test_results">الفرز حسب نتائج الاختبار (5)</string>
@@ -368,6 +368,7 @@
     <string name="title_pref_fragment_length">طول الجزء (الحد الأدنى - الحد الأقصى)</string>
     <string name="title_pref_fragment_interval">فاصل الجزء (الحد الأدنى - الحد الأقصى)</string>
     <string name="title_pref_fragment_enabled">تفعيل الجزء</string>
+    <string name="title_pref_fragment_maxsplit">ماكس سبليت الجزء</string>
 
     <string name="update_check_for_update">Check for update</string>
     <string name="update_already_latest_version">Already on the latest version</string>

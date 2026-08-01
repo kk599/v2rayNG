@@ -43,11 +43,13 @@ object CoreConfigContextBuilder {
 
         // Step 2: Resolve all non-builtin routing outbound tags.
         val routingResolvedOutbounds = resolveRoutingOutbounds()
+        val routingDomainRules = collectRoutingDomainRulesForDns()
 
         return CoreConfigContext(
             context = context,
             guid = guid,
             resolvedOutbounds = listOf(primaryResolvedOutbound) + routingResolvedOutbounds,
+            routingDomainRules = routingDomainRules,
         )
     }
 
@@ -163,7 +165,7 @@ object CoreConfigContextBuilder {
                     }
                 }
                 .filter { it.server.isNotNullEmpty() }
-                .filter { !Utils.isPureIpAddress(it.server!!) || Utils.isValidUrl(it.server!!) }
+                .filter { Utils.isPureIpAddress(it.server!!) || Utils.isValidUrl(it.server!!) }
                 .filter { !it.configType.isComplexType() }
                 .toList()
         } catch (e: Exception) {
@@ -182,7 +184,7 @@ object CoreConfigContextBuilder {
                 .asSequence()
                 .mapNotNull { remark -> SettingsManager.getServerViaRemarks(remark) }
                 .filter { it.server.isNotNullEmpty() }
-                .filter { !Utils.isPureIpAddress(it.server!!) || Utils.isValidUrl(it.server!!) }
+                .filter { Utils.isPureIpAddress(it.server!!) || Utils.isValidUrl(it.server!!) }
                 .filter { !it.configType.isComplexType() }
                 .toList()
                 .reversed()
@@ -213,5 +215,35 @@ object CoreConfigContextBuilder {
             LogUtil.e(AppConfig.TAG, "Failed to resolve proxy chain from group for '${config.remarks}'", e)
             return listOf(config)
         }
+    }
+
+    /**
+     * Collect enabled routing domain rules in original order for DNS segmentation.
+     *
+     * outbounds are normalized into three tags only: proxy / direct / block.
+     */
+    private fun collectRoutingDomainRulesForDns(): List<CoreConfigContext.RoutingDomainRule> {
+        val rulesetItems = MmkvManager.decodeRoutingRulesets() ?: return emptyList()
+        val result = mutableListOf<CoreConfigContext.RoutingDomainRule>()
+
+        rulesetItems
+            .asSequence()
+            .filter { it.enabled }
+            .filter { !it.domain.isNullOrEmpty() }
+            .forEach { rule ->
+                val normalizedOutboundTag = when (rule.outboundTag) {
+                    AppConfig.TAG_DIRECT -> AppConfig.TAG_DIRECT
+                    AppConfig.TAG_BLOCKED -> AppConfig.TAG_BLOCKED
+                    else -> AppConfig.TAG_PROXY
+                }
+                result.add(
+                    CoreConfigContext.RoutingDomainRule(
+                        domain = rule.domain.orEmpty(),
+                        outboundTag = normalizedOutboundTag
+                    )
+                )
+            }
+
+        return result
     }
 }

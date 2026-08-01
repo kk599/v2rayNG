@@ -5,7 +5,6 @@ import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.NetworkType
 import com.v2ray.ang.extension.idnHost
-import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.Utils
 import java.net.URI
 
@@ -17,7 +16,6 @@ object TrojanFmt : FmtBase() {
      * @return the parsed ProfileItem object, or null if parsing fails
      */
     fun parse(str: String): ProfileItem {
-        var allowInsecure = MmkvManager.decodeSettingsBool(AppConfig.PREF_ALLOW_INSECURE, false)
         val config = ProfileItem.create(EConfigType.TROJAN)
 
         val uri = URI(Utils.fixIllegalUrl(str))
@@ -29,11 +27,11 @@ object TrojanFmt : FmtBase() {
         if (uri.rawQuery.isNullOrEmpty()) {
             config.network = NetworkType.TCP.type
             config.security = AppConfig.TLS
-            config.insecure = allowInsecure
+            config.insecure = false
         } else {
             val queryParam = getQueryParam(uri)
 
-            getItemFormQuery(config, queryParam, allowInsecure)
+            getItemFormQuery(config, queryParam)
             config.security = queryParam["security"] ?: AppConfig.TLS
         }
 

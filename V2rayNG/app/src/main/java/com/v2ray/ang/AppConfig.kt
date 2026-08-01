@@ -43,6 +43,7 @@ object AppConfig {
     const val PREF_FRAGMENT_PACKETS = "pref_fragment_packets"
     const val PREF_FRAGMENT_LENGTH = "pref_fragment_length"
     const val PREF_FRAGMENT_INTERVAL = "pref_fragment_interval"
+    const val PREF_FRAGMENT_MAXSPLIT = "pref_fragment_maxsplit"
     const val SUBSCRIPTION_UPDATE_TASK_NAME = "subscription_updater"
     const val SUBSCRIPTION_MIN_INTERVAL_MINUTES = 15L
     const val PREF_SPEED_ENABLED = "pref_speed_enabled"
@@ -55,7 +56,6 @@ object AppConfig {
     const val PREF_IPV6_ENABLED = "pref_ipv6_enabled"
     const val PREF_PREFER_IPV6 = "pref_prefer_ipv6"
     const val PREF_PROXY_SHARING = "pref_proxy_sharing_enabled"
-    const val PREF_ALLOW_INSECURE = "pref_allow_insecure"
     const val PREF_ENABLE_LOCAL_PROXY = "pref_enable_local_proxy"
     const val PREF_SOCKS_PORT = "pref_socks_port"
     const val PREF_DYNAMIC_SOCKS_PORT = "pref_dynamic_socks_port"
@@ -70,6 +70,8 @@ object AppConfig {
     const val PREF_LOGLEVEL = "pref_core_loglevel"
     const val PREF_OUTBOUND_DOMAIN_RESOLVE_METHOD = "pref_outbound_domain_resolve_method"
     const val PREF_MODE = "pref_mode"
+    const val PREF_ROOT_MODE_ENABLE = "pref_root_mode_enabled"
+    const val PREF_ROOT_LAN_SHARING = "pref_root_lan_sharing"
     const val PREF_IS_BOOTED = "pref_is_booted"
     const val PREF_CHECK_UPDATE_PRE_RELEASE = "pref_check_update_pre_release"
     const val PREF_GEO_FILES_SOURCES = "pref_geo_files_sources"
@@ -196,6 +198,28 @@ object AppConfig {
     const val VPN = "VPN"
     const val VPN_MTU = 1500
 
+    /** Root (system-wide) mode runtime constants. */
+    const val ROOT_RUNTIME_DIR = "root"
+    const val ROOT_IPTABLES_CHAIN = "V2RAY_NG"
+    const val ROOT_FWMARK = 255            // defensive RETURN tag; hev's only upstream socket is loopback (already bypassed)
+    const val ROOT_MARK_ROUTE = 1          // packets we want pushed into the tun device
+    const val ROOT_ROUTE_TABLE = 2024
+    const val ROOT_RULE_PRIORITY = 1000
+    const val ROOT_TUN_NAME = "v2raytun0"
+    const val ROOT_TUN_ADDR_V4 = "198.18.0.1/15"
+    const val ROOT_TUN_ADDR_V6 = "fdfe:dcba:9876::1/64"
+
+    // hev-socks5-tunnel run as a standalone root binary (reuses the same project already
+    // bundled for the VPN hev path; distinct filename from the JNI lib to avoid collision).
+    const val ROOT_TUN2SOCKS_BIN = "libhevsockstun.so"
+    const val ROOT_FWD_CHAIN = "V2RAY_NG_FWD"   // FORWARD chain for LAN/tethering sharing
+    const val ROOT_DNS_CHAIN = "V2RAY_NG_DNS"   // nat chain for tethered-client DNS DNAT
+    const val ROOT_V6_CHAIN = "V2RAY_NG6"       // ip6tables filter/OUTPUT chain: blackhole native IPv6 when it isn't tunneled
+    const val ROOT_V6_FWD_CHAIN = "V2RAY_NG6_FWD" // ip6tables FORWARD chain: route or reject tethered clients' native IPv6
+    const val ROOT_V6_PRE_CHAIN = "V2RAY_NG6_PRE" // ip6tables mangle/PREROUTING chain: mark forwarded clients' IPv6 into the tun
+    const val ROOT_LAN_DNS = "1.1.1.1"          // fallback resolver for tethered clients when no plain-IPv4 DNS is configured
+    const val ROOT_OOM_SCORE = "-1000"          // oom_score_adj that makes the LMK never kill us
+
     /** hev-sock5-tunnel read-write-timeout value */
     const val HEVTUN_RW_TIMEOUT = "300,60"
 
@@ -204,13 +228,19 @@ object AppConfig {
     const val GOOGLEAPIS_COM_DOMAIN = "googleapis.com"
 
     // Android Private DNS constants
-    const val DNS_DNSPOD_DOMAIN = "dot.pub"
     const val DNS_ALIDNS_DOMAIN = "dns.alidns.com"
+    const val DNS_CISCO_SSE_DOMAIN = "dns.sse.cisco.com"
+    const val DNS_CISCO_UMBRELLA_DOMAIN = "dns.umbrella.com"
     const val DNS_CLOUDFLARE_ONE_DOMAIN = "one.one.one.one"
+    const val DNS_CLOUDFLARE_ONEDOT_DNS_DOMAIN = "1dot1dot1dot1.cloudflare-dns.com"
     const val DNS_CLOUDFLARE_DNS_COM_DOMAIN = "dns.cloudflare.com"
     const val DNS_CLOUDFLARE_DNS_DOMAIN = "cloudflare-dns.com"
+    const val DNS_CLOUDFLARE_WARP_DOMAIN = "engage.cloudflareclient.com"
+    const val DNS_DNSPOD_DOH_DOMAIN = "doh.pub"
+    const val DNS_DNSPOD_DOT_DOMAIN = "dot.pub"
     const val DNS_GOOGLE_DOMAIN = "dns.google"
     const val DNS_QUAD9_DOMAIN = "dns.quad9.net"
+    const val DNS_SB_DOMAIN = "dns.sb"
     const val DNS_YANDEX_DOMAIN = "common.dot.dns.yandex.net"
 
     const val DEFAULT_PORT = 443
@@ -224,12 +254,18 @@ object AppConfig {
     const val UNIDENTIFIED_PACKAGE = "__unknown_app__"
 
     val DNS_ALIDNS_ADDRESSES = arrayListOf("223.5.5.5", "223.6.6.6", "2400:3200::1", "2400:3200:baba::1")
+    val DNS_CISCO_SSE_ADDRESSES = arrayListOf("208.67.220.220", "208.67.222.222", "2620:119:35::35", "2620:119:53::53")
+    val DNS_CISCO_UMBRELLA_ADDRESSES = arrayListOf("208.67.220.220", "208.67.222.222", "2620:119:35::35", "2620:119:53::53")
     val DNS_CLOUDFLARE_ONE_ADDRESSES = arrayListOf("1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001")
-    val DNS_CLOUDFLARE_DNS_COM_ADDRESSES = arrayListOf("104.16.132.229", "104.16.133.229", "2606:4700::6810:84e5", "2606:4700::6810:85e5")
+    val DNS_CLOUDFLARE_ONEDOT_DNS_ADDRESSES = arrayListOf("1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001")
+    val DNS_CLOUDFLARE_DNS_COM_ADDRESSES = arrayListOf("162.159.61.8", "172.64.41.8", "2a06:98c1:52::8", "2803:f800:53::8")
     val DNS_CLOUDFLARE_DNS_ADDRESSES = arrayListOf("104.16.248.249", "104.16.249.249", "2606:4700::6810:f8f9", "2606:4700::6810:f9f9")
-    val DNS_DNSPOD_ADDRESSES = arrayListOf("1.12.12.12", "120.53.53.53")
+    val DNS_CLOUDFLARE_WARP_ADDRESSES = arrayListOf("162.159.192.1", "2606:4700:d0::a29f:c001")
+    val DNS_DNSPOD_DOH_ADDRESSES = arrayListOf("1.12.12.12", "120.53.53.53")
+    val DNS_DNSPOD_DOT_ADDRESSES = arrayListOf("1.12.12.12", "120.53.53.53")
     val DNS_GOOGLE_ADDRESSES = arrayListOf("8.8.8.8", "8.8.4.4", "2001:4860:4860::8888", "2001:4860:4860::8844")
     val DNS_QUAD9_ADDRESSES = arrayListOf("9.9.9.9", "149.112.112.112", "2620:fe::fe", "2620:fe::9")
+    val DNS_SB_ADDRESSES = arrayListOf("45.11.45.11", "185.222.222.222", "2a09::", "2a11::")
     val DNS_YANDEX_ADDRESSES = arrayListOf("77.88.8.8", "77.88.8.1", "2a02:6b8::feed:0ff", "2a02:6b8:0:1::feed:0ff")
 
     //minimum list https://serverfault.com/a/304791
